@@ -27,6 +27,59 @@ $tax_id = ($tax_id = $this->Location->get_info_for_key('tax_id', isset($override
 $website = ($website = $this->Location->get_info_for_key('website', isset($override_location_id) ? $override_location_id : FALSE)) ? $website : $this->config->item('website');
 $company_logo = ($company_logo = $this->Location->get_info_for_key('company_logo', isset($override_location_id) ? $override_location_id : FALSE)) ? $company_logo : $this->config->item('company_logo');
 
+$shiba_receipt = FALSE;
+$shiba_apartado = FALSE;
+$receipt_comment = isset($comment) ? (string) $comment : '';
+$shiba_balance = NULL;
+
+if ($total > 0 && empty($deleted) && empty($store_account_payment) && empty($is_purchase_points) && !$cart->suspended) {
+	foreach ($cart_items as $receipt_item) {
+		if ($receipt_item->quantity < 0) {
+			$shiba_receipt = $shiba_apartado = FALSE;
+			break;
+		}
+
+		if ($receipt_item->quantity > 0 && preg_match('/\bshiba\h+inu\b/iu', $receipt_item->name)) {
+			$shiba_receipt = TRUE;
+			if (preg_match('/\bapartado\b/iu', $receipt_item->name)) {
+				$shiba_apartado = TRUE;
+			}
+		}
+	}
+}
+
+if ($shiba_apartado) {
+	$return_policy = 'El apartado se abona al precio total. Si decides desistir de la compra, el apartado no es reembolsable, salvo cuando corresponda una devolución o cuando la cancelación sea imputable a Kimi Assad.';
+
+	if (!empty($show_comment_on_receipt)) {
+		$comment_lines = preg_split('/\R/u', $receipt_comment);
+		$balance_matches = array();
+
+		foreach ($comment_lines ?: array() as $line_index => $comment_line) {
+			if (preg_match('/^\h*(?:restan?|saldo\h+pendiente)\h*[:=]?\h*\$?\h*(\d{1,3}(?:,\d{3})+|\d{1,9})(\.\d{1,2})?(?:\h+(mil))?\h*(?:MXN|pesos?)?\h*\.?\h*$/iu', $comment_line, $amount)) {
+				$value = (float) str_replace(',', '', $amount[1] . (isset($amount[2]) ? $amount[2] : ''));
+				$balance_matches[$line_index] = empty($amount[3]) ? $value : $value * 1000;
+			}
+		}
+
+		// A single explicit balance line can be moved out of the free-form comment.
+		if (count($balance_matches) === 1) {
+			$shiba_balance = reset($balance_matches);
+			unset($comment_lines[key($balance_matches)]);
+			$receipt_comment = trim(implode("\n", $comment_lines));
+		}
+	}
+}
+
+// Only infer a whole-purchase price when the POS transaction contains one fully paid deposit.
+$shiba_deposit_amount = NULL;
+if ($shiba_apartado && count($cart_items) === 1 && (float) $receipt_item->quantity === 1.0
+	&& !empty($payments) && isset($amount_change) && $amount_change >= 0 && !$tip_amount
+	&& (empty($exchange_rate) || (float) $exchange_rate === 1.0) && !is_store_account_sale($cart)) {
+	$shiba_deposit_amount = $this->config->item('round_cash_on_sales') && !empty($is_sale_cash_payment)
+		? round_to_nearest_05($total) : $total;
+}
+
 $is_integrated_credit_sale = is_sale_integrated_cc_processing($cart);
 $is_sale_integrated_ebt_sale = is_sale_integrated_ebt_sale($cart);
 $is_credit_card_sale = is_credit_card_sale($cart);
@@ -220,6 +273,65 @@ if (!(isset($standalone) && $standalone)) {
 	</div>
 <?php
 } ?>
+<?php if ($shiba_receipt) { ?>
+<style>
+	.kimi-receipt-banner, .kimi-receipt-summary, .kimi-receipt-policy, .kimi-receipt-footer {
+		margin: 16px auto;
+		max-width: 720px;
+		text-align: left;
+	}
+	.kimi-receipt-banner, .kimi-receipt-summary, .kimi-receipt-policy {
+		border: 1px solid #dbc5b7;
+		border-radius: 6px;
+		padding: 12px 15px;
+		break-inside: avoid;
+	}
+	.kimi-receipt-banner, .kimi-receipt-policy {
+		background: #faf1e9;
+		color: #3a281f;
+	}
+	.kimi-receipt-banner strong {
+		display: block;
+		font: bold 1.45em Georgia, serif;
+		margin-bottom: 4px;
+	}
+	.kimi-receipt-caption {
+		color: #8c412b;
+		font-weight: bold;
+	}
+	.kimi-receipt-summary div {
+		padding: 4px 0;
+	}
+	.kimi-receipt-summary div span {
+		display: inline-block;
+		margin-right: 8px;
+	}
+	.kimi-receipt-summary div strong {
+		float: right;
+	}
+	.kimi-receipt-summary .kimi-receipt-balance {
+		border-top: 1px solid #dbc5b7;
+		color: #793922;
+		font-size: 1.1em;
+		font-weight: bold;
+	}
+	.kimi-receipt-footer {
+		border-top: 1px solid #dbc5b7;
+		padding-top: 9px;
+		text-align: center;
+	}
+	.kimi-receipt-footer a {
+		color: #793922;
+		font-weight: bold;
+	}
+	@media print {
+		.kimi-receipt-banner, .kimi-receipt-summary, .kimi-receipt-policy {
+			padding: 6px;
+			margin: 8px auto;
+		}
+	}
+</style>
+<?php } ?>
 <div <?php echo $this->config->item('uppercase_receipts') ? 'style="text-transform: uppercase !important"' : ''; ?>class="row manage-table receipt_<?php echo $this->config->item('receipt_text_size') ? $this->config->item('receipt_text_size') : 'small'; ?>" id="receipt_wrapper">
 	<div class="col-md-12" id="receipt_wrapper_inner">
 		<div class="panel panel-piluku">
@@ -270,7 +382,7 @@ if (!(isset($standalone) && $standalone)) {
 
 							<li class="nl2br"><?php echo H($this->Location->get_info_for_key('address', isset($override_location_id) ? $override_location_id : FALSE)); ?></li>
 							<li><?php echo H($this->Location->get_info_for_key('phone', isset($override_location_id) ? $override_location_id : FALSE)); ?></li>
-							<?php if ($website) { ?>
+							<?php if ($website && !$shiba_receipt) { ?>
 								<li><?php echo H($website); ?></li>
 							<?php } ?>
 						</ul>
@@ -280,7 +392,7 @@ if (!(isset($standalone) && $standalone)) {
 						<ul class="list-unstyled invoice-detail" style="margin-bottom:2px;">
 							<li>
 								<?php if ($receipt_title && (!isset($sale_type) || ($sale_type != $this->config->item('user_configured_estimate_name') ? $this->config->item('user_configured_estimate_name') : lang('common_estimate')))) { ?>
-									<span style="font-size: 130%;font-weight: bold;"><?php echo H($receipt_title); ?><?php echo ($total) < 0 ? ' (' . lang('sales_return', '', array(), TRUE) . ')' : ''; ?></span>
+									<span style="font-size: 130%;font-weight: bold;"><?php echo $shiba_apartado ? 'RECIBO DE APARTADO' : H($receipt_title); ?><?php echo ($total) < 0 ? ' (' . lang('sales_return', '', array(), TRUE) . ')' : ''; ?></span>
 									<br>
 								<?php } ?>
 								<?php
@@ -519,6 +631,13 @@ if (!(isset($standalone) && $standalone)) {
 					</div>
 
 				</div>
+				<?php if ($shiba_receipt) { ?>
+					<div class="kimi-receipt-banner">
+						<strong>¡Enhorabuena por tu nuevo Shiba!</strong>
+						<div>Ya eres parte de la familia Kimi Assad.</div>
+						<div>Gracias por confiar en nosotros.</div>
+					</div>
+				<?php } ?>
 				<?php
 				$x_col = 6;
 				$xs_col = 4;
@@ -1603,11 +1722,24 @@ if (!(isset($standalone) && $standalone)) {
 					?>
 
 
+					<?php if ($shiba_balance !== NULL || $shiba_deposit_amount !== NULL) { ?>
+						<div class="kimi-receipt-summary gift_receipt_element">
+							<?php if ($shiba_deposit_amount !== NULL) { ?>
+								<?php if ($shiba_balance !== NULL) { ?>
+									<div class="clearfix"><span>Precio acordado</span><strong><?php echo H('$' . number_format($shiba_deposit_amount + $shiba_balance, 2) . ' MXN'); ?></strong></div>
+								<?php } ?>
+								<div class="clearfix"><span>Apartado recibido</span><strong><?php echo H('$' . number_format($shiba_deposit_amount, 2) . ' MXN'); ?></strong></div>
+							<?php } ?>
+							<?php if ($shiba_balance !== NULL) { ?>
+								<div class="kimi-receipt-balance clearfix"><span>Saldo pendiente</span><strong><?php echo H('$' . number_format($shiba_balance, 2) . ' MXN'); ?></strong></div>
+							<?php } ?>
+						</div>
+					<?php } ?>
 					<div class="row">
 						<div class="col-md-12 col-sm-12 col-xs-12">
 							<div class="text-center invoice-policy">
 								<?php if ($show_comment_on_receipt == 1) {
-									echo H($comment);
+									echo $shiba_apartado ? nl2br(H($receipt_comment)) : H($comment);
 								}
 								?>
 							</div>
@@ -1617,11 +1749,13 @@ if (!(isset($standalone) && $standalone)) {
 				<!-- invoice footer-->
 				<div class="row">
 					<div class="col-md-12 col-sm-12 col-xs-12">
-						<div class="invoice-policy" id="invoice-policy-return">
+						<div class="invoice-policy<?php echo $shiba_apartado ? ' kimi-receipt-policy' : ''; ?>" id="invoice-policy-return">
+							<?php if ($shiba_apartado) { ?><div class="kimi-receipt-caption">Política de apartado</div><?php } ?>
 							<?php echo nl2br(H($return_policy)); ?>
 						</div>
 
-						<div class="invoice-policy" id="invoice-policy-return-mobile" style="display: none;line-height:1;">
+						<div class="invoice-policy<?php echo $shiba_apartado ? ' kimi-receipt-policy' : ''; ?>" id="invoice-policy-return-mobile" style="display: none;line-height:1;">
+							<?php if ($shiba_apartado) { ?><div class="kimi-receipt-caption">Política de apartado</div><?php } ?>
 							<?php
 							//hack to fix bug in html-2-canvas
 							echo (str_replace(' ', '<i></i> ', H($return_policy)));
@@ -1822,6 +1956,12 @@ if (!(isset($standalone) && $standalone)) {
 						</div>
 					<?php } ?>
 				</div>
+				<?php if ($shiba_receipt) { ?>
+					<div class="kimi-receipt-footer">
+						<?php if ($shiba_apartado) { ?><p>Conserva tu folio para identificar la reserva y coordinar la entrega.</p><?php } ?>
+						<a href="https://shibainumx.com">shibainumx.com</a>
+					</div>
+				<?php } ?>
 			</div>
 			<!--container-->
 		</div>
@@ -2387,12 +2527,12 @@ if ($this->config->item('allow_reorder_sales_receipt'))
 
 <?php echo H($this->Location->get_info_for_key('phone', isset($override_location_id) ? $override_location_id : FALSE)); ?>
 
-<?php if ($website) { ?>
+<?php if ($website && !$shiba_receipt) { ?>
 <?php echo H($website); ?>
 	
 <?php } ?>
 
-<?php echo H($receipt_title); ?>
+<?php echo $shiba_apartado ? 'RECIBO DE APARTADO' : H($receipt_title); ?>
 
 <?php echo H($transaction_time); ?>
 
@@ -2546,7 +2686,10 @@ if (isset($auth_code) && $auth_code) {
 }
 ?>
 <?php if ($show_comment_on_receipt == 1) {
-	echo H($comment);
+	if ($shiba_balance !== NULL) {
+		echo 'Saldo pendiente: ' . H('$' . number_format($shiba_balance, 2) . ' MXN') . "\n";
+	}
+	echo H($shiba_apartado ? $receipt_comment : $comment);
 } ?>
 
 <?php if (!$this->config->item('hide_signature')) { ?>
@@ -2564,7 +2707,10 @@ if (isset($auth_code) && $auth_code) {
 ?><?php } ?><?php } ?>
 <?php if ($return_policy) {
 	echo wordwrap(H($return_policy), 40);
-} ?></script>
+} ?>
+<?php if ($shiba_receipt) { ?>
+shibainumx.com
+<?php } ?></script>
 <?php
 if (isset($standalone) && $standalone) {
 	$this->load->view("partial/footer_standalone");
