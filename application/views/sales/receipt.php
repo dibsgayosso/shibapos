@@ -80,6 +80,12 @@ if ($shiba_apartado && count($cart_items) === 1 && (float) $receipt_item->quanti
 		? round_to_nearest_05($total) : $total;
 }
 
+$shiba_puppy = NULL;
+if ($shiba_receipt && !empty($sale_id_raw) && $this->db->table_exists('shiba_puppies')) {
+	$this->load->model('Shiba_kennel');
+	$shiba_puppy = $this->Shiba_kennel->receipt_details($sale_id_raw);
+}
+
 $is_integrated_credit_sale = is_sale_integrated_cc_processing($cart);
 $is_sale_integrated_ebt_sale = is_sale_integrated_ebt_sale($cart);
 $is_credit_card_sale = is_credit_card_sale($cart);
@@ -239,6 +245,10 @@ if (!(isset($standalone) && $standalone)) {
 								)) . '&nbsp;<label for="print_duplicate_receipt"><span></span>' . lang('sales_duplicate_receipt', '', array(), TRUE) . '</label>';
 								?>
 							</li>
+							<?php if ($shiba_receipt && !empty($customer) && !empty($sale_id_raw)
+								&& $this->Employee->has_module_action_permission('sales', 'edit_sale', $this->Employee->get_logged_in_employee_info()->person_id)) { ?>
+								<li><a class="btn btn-default btn-lg hidden-print" href="<?php echo H(site_url('camadas') . '?venta=' . (int) $sale_id_raw); ?>">Vincular cachorro</a></li>
+							<?php } ?>
 							<li>
 								<button class="btn btn-primary btn-lg hidden-print" id="print_button" onclick="print_receipt()"> <?php echo lang('common_print', '', array(), TRUE); ?> </button>
 							</li>
@@ -636,6 +646,18 @@ if (!(isset($standalone) && $standalone)) {
 						<strong>¡Enhorabuena por tu nuevo Shiba!</strong>
 						<div>Ya eres parte de la familia Kimi Assad.</div>
 						<div>Gracias por confiar en nosotros.</div>
+						<?php if ($shiba_puppy) {
+							$pedigree_labels = array('pending' => 'Por definir', 'with' => 'Con pedigree', 'without' => 'Sin pedigree');
+						?>
+							<div class="gift_receipt_element">
+								<span class="kimi-receipt-caption">Cachorro</span> <?php echo H($shiba_puppy['code']); ?>
+								· <span class="kimi-receipt-caption">Pedigree</span> <?php echo H($pedigree_labels[$shiba_puppy['pedigree_choice']]); ?>
+								<?php if ($shiba_puppy['delivery_on']) { ?>
+									· <span class="kimi-receipt-caption">Entrega acordada</span>
+									<?php echo H(date('d/m/Y', strtotime($shiba_puppy['delivery_on']))); ?>
+								<?php } ?>
+							</div>
+						<?php } ?>
 					</div>
 				<?php } ?>
 				<?php
