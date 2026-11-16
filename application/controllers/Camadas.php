@@ -107,6 +107,13 @@ class Camadas extends Secure_area
 			$this->finish(FALSE, 'Verifica el folio de venta de esta sucursal, el cliente y las fechas. Para cambiar de venta, primero libera la reserva.');
 		}
 
+		if ($puppy['sale_id'] && !$sale_id) {
+			$delivery = $this->Shiba_kennel->delivery_for_sale($puppy['sale_id']);
+			if (!empty($puppy['delivered_on']) || !empty($delivery['actual_delivery_or_pickup_date'])) {
+				$this->finish(FALSE, 'No se puede liberar un cachorro con una entrega registrada.', $puppy['litter_id']);
+			}
+		}
+
 		$success = $this->Shiba_kennel->save_reservation($puppy, array(
 			'sale_id' => $sale_id ?: NULL, 'pedigree_choice' => $choice,
 			'pedigree_status' => $choice === 'with' ? $pedigree : NULL,

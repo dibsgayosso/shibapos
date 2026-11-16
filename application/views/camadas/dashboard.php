@@ -31,9 +31,9 @@ $open_form = function ($action) use ($csrf) {
 	<?php } ?>
 
 	<div class="kc-stats">
-		<div><span>Camadas</span><strong><?php echo count($litters); ?></strong></div>
+		<div class="kc-metric-litters"><span>Camadas</span><strong><?php echo count($litters); ?></strong></div>
 		<?php foreach ($states as $key => $label) { ?>
-			<div><span><?php echo H($label); ?></span><strong><?php echo (int) $counts[$key]; ?></strong></div>
+			<div class="kc-metric-<?php echo H($key); ?>"><span><?php echo H($label); ?></span><strong><?php echo (int) $counts[$key]; ?></strong></div>
 		<?php } ?>
 	</div>
 
@@ -60,7 +60,7 @@ $open_form = function ($action) use ($csrf) {
 						<summary>
 							<span><strong><?php echo H($puppy['code']); ?></strong><small><?php echo $puppy['sex'] === 'M' ? 'Macho' : 'Hembra'; ?> · <?php echo H($puppy['coat']); ?></small></span>
 							<span><small>Pedigree</small><?php echo H($choices[$puppy['pedigree_choice']]); ?></span>
-							<span><small>Entrega</small><?php echo H($date_label($puppy['actual'] ?: $puppy['planned'])); ?></span>
+							<span><small><?php echo $puppy['actual'] ? 'Entrega real' : 'Entrega acordada'; ?></small><?php echo H($date_label($puppy['actual'] ?: $puppy['planned'])); ?></span>
 							<span class="kc-badge kc-<?php echo H($puppy['state']); ?>"><?php echo H($state_labels[$puppy['state']]); ?></span>
 						</summary>
 						<div class="kc-puppy-content">
@@ -84,7 +84,9 @@ $open_form = function ($action) use ($csrf) {
 										<label>Estado del pedigree <select name="pedigree_status"><?php foreach ($pedigrees as $key => $label) { ?><option value="<?php echo H($key); ?>" <?php echo $puppy['pedigree_status'] === $key ? 'selected' : ''; ?>><?php echo H($label); ?></option><?php } ?></select></label>
 										<label>Entrega acordada <input name="delivery_on" type="date" value="<?php echo H($puppy['delivery_on']); ?>"></label>
 										<label>Entrega real <input name="delivered_on" type="date" value="<?php echo H($puppy['delivered_on']); ?>"></label>
-										<p class="kc-help">Para liberar una reserva, vacía el folio y las fechas y elige Por definir.</p>
+										<p class="kc-help"><?php echo $puppy['actual']
+											? 'Este cachorro ya tiene entrega registrada y conserva su vínculo con la venta.'
+											: 'Para liberar una reserva, vacía el folio y las fechas y elige Por definir.'; ?></p>
 										<button class="kc-btn kc-primary">Guardar reserva</button>
 									</form>
 									<?php } ?>

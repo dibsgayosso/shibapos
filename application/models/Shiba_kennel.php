@@ -76,13 +76,19 @@ class Shiba_kennel extends CI_Model
 			->join('sales s', 's.sale_id = p.sale_id AND s.location_id = l.location_id')
 			->where(array('s.sale_id' => (int) $sale_id, 's.deleted' => 0, 's.suspended' => 0))->get()->row_array();
 		if ($puppy) {
-			$delivery = $this->db->select('estimated_delivery_or_pickup_date')->where('deleted', 0)
-				->where('sale_id', (int) $sale_id)->order_by('id', 'DESC')->limit(1)->get('sales_deliveries')->row_array();
+			$delivery = $this->delivery_for_sale($sale_id);
 			if (!empty($delivery['estimated_delivery_or_pickup_date'])) {
 				$puppy['delivery_on'] = substr($delivery['estimated_delivery_or_pickup_date'], 0, 10);
 			}
 		}
 		return $puppy;
+	}
+
+	public function delivery_for_sale($sale_id)
+	{
+		return $this->db->select('estimated_delivery_or_pickup_date, actual_delivery_or_pickup_date')
+			->where(array('sale_id' => (int) $sale_id, 'deleted' => 0))
+			->order_by('id', 'DESC')->limit(1)->get('sales_deliveries')->row_array();
 	}
 
 	public function sale($id, $location)
