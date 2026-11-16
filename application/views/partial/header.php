@@ -490,6 +490,14 @@ if (is_on_demo_host()) { ?>
 				<?php 
 				} } 
 				?>
+				<?php if (!in_array('camadas', $disable_modules, TRUE)
+					&& $this->Employee->has_module_permission('sales', $this->Employee->get_logged_in_employee_info()->person_id)) { ?>
+					<li <?php echo $this->uri->segment(1) === 'camadas' ? 'class="active"' : ''; ?>>
+						<a href="<?php echo site_url('camadas'); ?>" class="waves-effect waves-light">
+							<i class="icon ti-clipboard"></i><span class="text">Camadas</span>
+						</a>
+					</li>
+				<?php } ?>
 				<?php
 				if ($this->config->item('timeclock')) 
 				{
